@@ -9,8 +9,6 @@ def init_llm():
     genai.configure(api_key=api_key)
 
 def parse_expense(text):
-    # Use Gemini 2.5 flash or standard 1.5 flash depending on what's available
-    # We will fallback to gemini-1.5-flash if needed, but gemini-1.5-flash is stable.
     # Find the best available model dynamically
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     # Prefer flash models as they are fast and cheap
@@ -19,15 +17,19 @@ def parse_expense(text):
     
     model = genai.GenerativeModel(model_name)
     prompt = f"""
-    You are a finance assistant. Extract the expense details from the user's message.
+    You are a finance assistant. Extract the details from the user's message.
     Message: "{text}"
     
     Respond ONLY with a valid JSON object containing the following keys:
-    - amount: (float) the amount spent. If no amount is mentioned, return null.
-    - category: (string) the type of expense (e.g., taxi, food, groceries). If not found, infer from text or return "other".
-    - payment_source: (string) the payment method (e.g., UPI, Credit Card, Cash). If not found, return "unknown".
-    - description: (string) a brief summary of the expense.
-    - is_expense: (boolean) true if the message is reporting an expense, false if it's a general question or conversation.
+    - amount: (float) the amount mentioned. If no amount is mentioned, return null.
+    - category: (string) the type of expense (e.g., taxi, food). If not found, return "other".
+    - payment_source: (string) the payment method (e.g., UPI, Credit Card, Cash).
+    - description: (string) a brief summary.
+    - is_expense: (boolean) true if the message is reporting a standard expense.
+    - is_debt: (boolean) true if the message is about owing money or someone owing the user money.
+    - is_debt_clear: (boolean) true if the message is about clearing or paying off an existing debt.
+    - debt_type: (string) "i_owe" if the user owes money to someone else, "owed_to_me" if someone owes the user money.
+    - person_name: (string) the name of the person involved in the debt (e.g., "Aditya").
     """
     
     try:

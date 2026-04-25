@@ -25,10 +25,28 @@ def init_db():
             date TIMESTAMP
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS debts (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            amount REAL,
+            person_name TEXT,
+            debt_type TEXT,
+            is_cleared BOOLEAN DEFAULT FALSE,
+            date TIMESTAMP
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
     conn.commit()
     cursor.close()
     conn.close()
 
+# --- EXPENSE FUNCTIONS ---
 def add_expense(user_id, amount, category, payment_source, description, date=None):
     if date is None:
         date = datetime.now()
@@ -66,3 +84,73 @@ def get_recent_expenses(user_id, limit=5):
     cursor.close()
     conn.close()
     return results
+
+# --- DEBT FUNCTIONS ---
+def add_debt(user_id, amount, person_name, debt_type):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO debts (user_id, amount, person_name, debt_type, date)
+        VALUES (%s, %s, %s, %s, %s)
+    ''', (user_id, amount, person_name, debt_type, datetime.now()))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def clear_debt(user_id, person_name):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE debts SET is_cleared = TRUE 
+        WHERE user_id = %s AND LOWER(person_name) = LOWER(%s)
+    ''', (user_id, person_name))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def get_uncleared_debts(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT amount, person_name, debt_type FROM debts 
+        WHERE user_id = %s AND is_cleared = FALSE
+    ''')
+    results = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return results
+
+# --- SETTINGS / USERS ---
+def get_all_users():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Get all users who have ever logged an expense or debt
+    cursor.execute('''
+        SELECT DISTINCT user_id FROM expenses
+        UNION
+        SELECT DISTINCT user_id FROM debts
+    ''')
+    results = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    conn.close()
+    return results
+
+def get_setting(key):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT value FROM settings WHERE key = %s', (key,))
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return result[0] if result else None
+
+def set_setting(key, value):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO settings (key, value) VALUES (%s, %s)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    ''', (key, value))
+    conn.commit()
+    cursor.close()
+    conn.close()
