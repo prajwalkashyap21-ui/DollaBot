@@ -1,0 +1,9 @@
+# Environment variables
+.env
+
+# SQLite database (we don't want to upload your personal expenses to the public internet!)
+expenses.db
+
+# Python cache
+__pycache__/
+*.pyc
