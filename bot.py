@@ -12,8 +12,8 @@ load_dotenv()
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-CURRENT_VERSION = "1.2 - Recurring & Subscriptions"
-NEW_FEATURE_MESSAGE = "🚀 *New Feature Deployed!*\n\nI can now handle Recurring Expenses & Subscriptions!\n\n- Say _\"Gemini subscription 2000 autopay\"_ and I'll notify you 2 days before it hits.\n- Say _\"Paying 37000 to landlord every month\"_ and I'll remind you every month until you say _\"Rent paid\"_.\n- You can also ask me: _\"What subscriptions do I have?\"_ or _\"What is unpaid?\"_"
+CURRENT_VERSION = "1.3 - Custom Recurring Dates"
+NEW_FEATURE_MESSAGE = "🚀 *New Feature Deployed!*\n\nYou can now specify the exact date for your recurring expenses! Example:\n- _\"Set up Netflix for 500 every month on the 15th\"_\n- _\"Change my rent date to the 5th\"_"
 
 database.init_db()
 llm_helper.init_llm()
@@ -59,13 +59,21 @@ def handle_message(message):
                 category = parsed_data.get('category', 'recurring')
                 description = parsed_data.get('description', text)
                 is_autopay = parsed_data.get('is_autopay', False)
-                day_of_month = datetime.now().day
+                day_of_month = parsed_data.get('day_of_month') or datetime.now().day
                 database.add_recurring(user_id, amount, category, payee, description, is_autopay, day_of_month)
                 reply = f"🔄 Setup Recurring: {payee.title()} ({amount}) on the {day_of_month}th of every month.\nAutopay: {'Yes' if is_autopay else 'No'}"
                 
             elif parsed_data.get('is_recurring_update'):
-                database.update_recurring_amount(user_id, payee, amount)
-                reply = f"🔄 Updated recurring payment for {payee.title()} to {amount}."
+                day_of_month = parsed_data.get('day_of_month')
+                update_msg = []
+                if amount:
+                    database.update_recurring_amount(user_id, payee, amount)
+                    update_msg.append(f"amount to {amount}")
+                if day_of_month:
+                    database.update_recurring_date(user_id, payee, day_of_month)
+                    update_msg.append(f"date to the {day_of_month}th")
+                
+                reply = f"🔄 Updated recurring payment for {payee.title()}: {' and '.join(update_msg)}."
                 
             elif parsed_data.get('is_recurring_payment'):
                 current_month = datetime.now().strftime("%Y-%m")

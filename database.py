@@ -156,6 +156,16 @@ def update_recurring_amount(user_id, payee, new_amount):
     cursor.close()
     conn.close()
 
+def update_recurring_date(user_id, payee, new_day):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE recurring SET day_of_month = %s WHERE user_id = %s AND LOWER(payee) = LOWER(%s)
+    ''', (new_day, user_id, payee))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 def mark_recurring_paid(user_id, payee, current_month_str):
     conn = get_db_connection()
     cursor = conn.cursor()

@@ -33,6 +33,7 @@ def parse_expense(text):
     - is_recurring_payment: (boolean) true if the user is mentioning they have paid a recurring expense.
     - is_autopay: (boolean) true if the recurring expense is auto-debited / autopay.
     - payee: (string) who is receiving the recurring payment (e.g., "landlord", "Netflix", "Gemini").
+    - day_of_month: (integer) The specific day of the month (1-31) the recurring expense happens or is due. Null if not specified.
     """
     
     try:
