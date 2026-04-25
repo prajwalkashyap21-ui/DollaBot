@@ -2,3 +2,4 @@ pyTelegramBotAPI
 google-generativeai
 python-dotenv
 psycopg2-binary
+Flask

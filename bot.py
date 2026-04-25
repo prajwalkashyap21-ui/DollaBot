@@ -3,6 +3,8 @@ import telebot
 from dotenv import load_dotenv
 import database
 import llm_helper
+import threading
+from flask import Flask
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,7 +23,6 @@ try:
     print("LLM initialized successfully.")
 except Exception as e:
     print(f"Warning: {e}")
-    print("Please make sure you have added GEMINI_API_KEY to your .env file.")
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
@@ -29,10 +30,8 @@ def send_welcome(message):
         "Hello! I am your personal Expense Tracker and Finance Agent. 💰\n\n"
         "You can simply type your expenses like:\n"
         "- 'taxi 300'\n"
-        "- 'lunch 500 UPI'\n"
-        "- 'bought groceries for 1200 using Credit Card'\n\n"
-        "I will automatically categorize and save them. I'll also let you know your total spend for the month!\n\n"
-        "You can also ask me for budgeting advice or to analyze your spending."
+        "- 'lunch 500 UPI'\n\n"
+        "I will automatically categorize and save them!"
     )
     bot.reply_to(message, welcome_text)
 
@@ -41,10 +40,7 @@ def handle_message(message):
     user_id = message.from_user.id
     text = message.text
     
-    # Show "typing..." action in the chat
     bot.send_chat_action(message.chat.id, 'typing')
-    
-    # Try to parse the text as an expense using Gemini
     parsed_data = llm_helper.parse_expense(text)
     
     if parsed_data and parsed_data.get('is_expense') and parsed_data.get('amount') is not None:
@@ -53,10 +49,7 @@ def handle_message(message):
         payment_source = parsed_data.get('payment_source', 'unknown')
         description = parsed_data.get('description', text)
         
-        # Save to database
         database.add_expense(user_id, amount, category, payment_source, description)
-        
-        # Get updated monthly total
         monthly_total = database.get_monthly_total(user_id)
         
         reply = (
@@ -68,13 +61,26 @@ def handle_message(message):
         )
         bot.reply_to(message, reply)
     else:
-        # Not recognized as a straightforward expense, might be a question or chat
         monthly_total = database.get_monthly_total(user_id)
         recent_expenses = database.get_recent_expenses(user_id)
-        
         advice = llm_helper.get_finance_advice(user_id, text, monthly_total, recent_expenses)
         bot.reply_to(message, advice)
 
+# --- FLASK SERVER (TO KEEP RENDER HAPPY) ---
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
 if __name__ == "__main__":
+    print("Starting Flask server...")
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
+    
     print("Bot is starting up...")
     bot.infinity_polling()
