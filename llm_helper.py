@@ -9,9 +9,7 @@ def init_llm():
     genai.configure(api_key=api_key)
 
 def parse_expense(text):
-    # Find the best available model dynamically
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    # Prefer flash models as they are fast and cheap
     flash_models = [m for m in available_models if 'flash' in m]
     model_name = flash_models[0] if flash_models else available_models[0]
     
@@ -21,50 +19,57 @@ def parse_expense(text):
     Message: "{text}"
     
     Respond ONLY with a valid JSON object containing the following keys:
-    - amount: (float) the amount mentioned. If no amount is mentioned, return null.
-    - category: (string) the type of expense (e.g., taxi, food). If not found, return "other".
-    - payment_source: (string) the payment method (e.g., UPI, Credit Card, Cash).
+    - amount: (float) the amount mentioned. Return null if none.
+    - category: (string) the type of expense.
+    - payment_source: (string) the payment method.
     - description: (string) a brief summary.
-    - is_expense: (boolean) true if the message is reporting a standard expense.
-    - is_debt: (boolean) true if the message is about owing money or someone owing the user money.
-    - is_debt_clear: (boolean) true if the message is about clearing or paying off an existing debt.
-    - debt_type: (string) "i_owe" if the user owes money to someone else, "owed_to_me" if someone owes the user money.
-    - person_name: (string) the name of the person involved in the debt (e.g., "Aditya").
+    - is_expense: (boolean) true if it's a standard expense.
+    - is_debt: (boolean) true if owing or owed money.
+    - is_debt_clear: (boolean) true if clearing a debt.
+    - debt_type: (string) "i_owe" or "owed_to_me".
+    - person_name: (string) name of person for debt.
+    - is_recurring_setup: (boolean) true if setting up a new recurring expense/subscription (e.g., "paying 37000 to landlord every month").
+    - is_recurring_update: (boolean) true if updating the amount of an existing recurring expense (e.g., "rent increased to 39000").
+    - is_recurring_payment: (boolean) true if the user is mentioning they have paid a recurring expense.
+    - is_autopay: (boolean) true if the recurring expense is auto-debited / autopay.
+    - payee: (string) who is receiving the recurring payment (e.g., "landlord", "Netflix", "Gemini").
     """
     
     try:
         response = model.generate_content(prompt)
         result_text = response.text.strip()
-        
-        # Strip markdown json blocks if present
         if result_text.startswith("```json"):
             result_text = result_text[7:-3].strip()
         elif result_text.startswith("```"):
             result_text = result_text[3:-3].strip()
-            
         return json.loads(result_text)
     except Exception as e:
         print(f"Failed to parse LLM response: {e}")
         return None
 
-def get_finance_advice(user_id, user_message, current_monthly_total, recent_expenses):
-    # Find the best available model dynamically
+def get_finance_advice(user_id, user_message, current_monthly_total, recent_expenses, recurring_expenses):
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     flash_models = [m for m in available_models if 'flash' in m]
     model_name = flash_models[0] if flash_models else available_models[0]
     
     model = genai.GenerativeModel(model_name)
     expenses_str = "\n".join([f"- {e[0]} for {e[1]} via {e[2]} on {e[4]}" for e in recent_expenses])
-    prompt = f"""
-    You are a helpful and friendly personal finance agent. 
-    The user is asking a question or seeking advice: "{user_message}"
+    recurring_str = "\n".join([f"- {e[4]} ({e[1]}) to {e[3]} | Autopay: {e[5]} | Last Paid: {e[7]}" for e in recurring_expenses])
     
-    Here is their recent financial context:
+    prompt = f"""
+    You are a personal finance agent on Telegram. 
+    User message: "{user_message}"
+    
+    Context:
     - Total spent this month: {current_monthly_total}
     - Recent expenses:
     {expenses_str}
+    - Recurring Expenses & Subscriptions (Autopay info and Paid status):
+    {recurring_str}
     
-    Provide a concise, helpful response. You can give budgeting advice, analyze their spending, or just answer their question. Keep it brief and suitable for a chat message on Telegram/WhatsApp. Use emojis where appropriate.
+    If the user asks what subscriptions they have running, list them nicely from the context.
+    If they ask what recurring expenses are unpaid, identify those where Last Paid is NOT the current month, and Autopay is False.
+    Keep the response concise, helpful, and use emojis!
     """
     try:
         response = model.generate_content(prompt)

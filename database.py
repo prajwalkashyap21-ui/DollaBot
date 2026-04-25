@@ -37,6 +37,20 @@ def init_db():
         )
     ''')
     cursor.execute('''
+        CREATE TABLE IF NOT EXISTS recurring (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            amount REAL,
+            category TEXT,
+            payee TEXT,
+            description TEXT,
+            is_autopay BOOLEAN,
+            day_of_month INTEGER,
+            last_paid_month TEXT,
+            last_notified_month TEXT
+        )
+    ''')
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT
@@ -120,15 +134,68 @@ def get_uncleared_debts(user_id):
     conn.close()
     return results
 
+# --- RECURRING / SUBSCRIPTION FUNCTIONS ---
+def add_recurring(user_id, amount, category, payee, description, is_autopay, day_of_month):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO recurring (user_id, amount, category, payee, description, is_autopay, day_of_month)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    ''', (user_id, amount, category, payee, description, is_autopay, day_of_month))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def update_recurring_amount(user_id, payee, new_amount):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE recurring SET amount = %s WHERE user_id = %s AND LOWER(payee) = LOWER(%s)
+    ''', (new_amount, user_id, payee))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def mark_recurring_paid(user_id, payee, current_month_str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE recurring SET last_paid_month = %s WHERE user_id = %s AND LOWER(payee) = LOWER(%s)
+    ''', (current_month_str, user_id, payee))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def mark_recurring_notified(recurring_id, current_month_str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE recurring SET last_notified_month = %s WHERE id = %s
+    ''', (current_month_str, recurring_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def get_all_recurring(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, amount, category, payee, description, is_autopay, day_of_month, last_paid_month, last_notified_month 
+        FROM recurring WHERE user_id = %s
+    ''', (user_id,))
+    results = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return results
+
 # --- SETTINGS / USERS ---
 def get_all_users():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Get all users who have ever logged an expense or debt
     cursor.execute('''
         SELECT DISTINCT user_id FROM expenses
-        UNION
-        SELECT DISTINCT user_id FROM debts
+        UNION SELECT DISTINCT user_id FROM debts
+        UNION SELECT DISTINCT user_id FROM recurring
     ''')
     results = [row[0] for row in cursor.fetchall()]
     cursor.close()

@@ -5,28 +5,18 @@ import database
 import llm_helper
 import threading
 from flask import Flask
+from datetime import datetime, timedelta
 
-# Load environment variables from .env file
 load_dotenv()
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-if not BOT_TOKEN:
-    print("ERROR: TELEGRAM_BOT_TOKEN not found. Please create a .env file and add your token.")
-    exit(1)
-
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Change this string and redeploy to notify all users!
-CURRENT_VERSION = "1.1 - Debt Tracking"
-NEW_FEATURE_MESSAGE = "🚀 *New Feature Deployed!*\n\nI can now track your debts! You can say things like:\n- '300 owed to aditya'\n- 'aditya owes me 500'\n- '300 to aditya cleared'\n\nI will keep track of who owes you (and who you owe) and remind you!"
+CURRENT_VERSION = "1.2 - Recurring & Subscriptions"
+NEW_FEATURE_MESSAGE = "🚀 *New Feature Deployed!*\n\nI can now handle Recurring Expenses & Subscriptions!\n\n- Say _\"Gemini subscription 2000 autopay\"_ and I'll notify you 2 days before it hits.\n- Say _\"Paying 37000 to landlord every month\"_ and I'll remind you every month until you say _\"Rent paid\"_.\n- You can also ask me: _\"What subscriptions do I have?\"_ or _\"What is unpaid?\"_"
 
-# Initialize database and LLM
 database.init_db()
-try:
-    llm_helper.init_llm()
-    print("LLM initialized successfully.")
-except Exception as e:
-    print(f"Warning: {e}")
+llm_helper.init_llm()
 
 # Notify users of new features
 try:
@@ -37,22 +27,14 @@ try:
             try:
                 bot.send_message(u, NEW_FEATURE_MESSAGE, parse_mode='Markdown')
             except Exception as e:
-                print(f"Could not send notification to {u}: {e}")
+                pass
         database.set_setting("last_announced_version", CURRENT_VERSION)
-        print(f"Notified users about version {CURRENT_VERSION}")
 except Exception as e:
-    print(f"Notification system error: {e}")
+    pass
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    welcome_text = (
-        "Hello! I am your personal Expense Tracker and Finance Agent. 💰\n\n"
-        "You can simply type your expenses like:\n"
-        "- 'taxi 300'\n"
-        "- 'lunch 500 UPI'\n"
-        "- '300 owed to aditya'\n\n"
-        "I will automatically categorize and save them!"
-    )
+    welcome_text = "Hello! I am your personal Expense Tracker! Log expenses, debts, and subscriptions with natural language."
     bot.reply_to(message, welcome_text)
 
 @bot.message_handler(func=lambda message: True)
@@ -67,8 +49,33 @@ def handle_message(message):
     is_transaction = False
     
     if parsed_data:
-        # Check if it's a debt interaction
-        if parsed_data.get('is_debt') or parsed_data.get('is_debt_clear'):
+        # Check Recurring
+        if parsed_data.get('is_recurring_setup') or parsed_data.get('is_recurring_update') or parsed_data.get('is_recurring_payment'):
+            is_transaction = True
+            amount = parsed_data.get('amount')
+            payee = parsed_data.get('payee', 'unknown')
+            
+            if parsed_data.get('is_recurring_setup'):
+                category = parsed_data.get('category', 'recurring')
+                description = parsed_data.get('description', text)
+                is_autopay = parsed_data.get('is_autopay', False)
+                day_of_month = datetime.now().day
+                database.add_recurring(user_id, amount, category, payee, description, is_autopay, day_of_month)
+                reply = f"🔄 Setup Recurring: {payee.title()} ({amount}) on the {day_of_month}th of every month.\nAutopay: {'Yes' if is_autopay else 'No'}"
+                
+            elif parsed_data.get('is_recurring_update'):
+                database.update_recurring_amount(user_id, payee, amount)
+                reply = f"🔄 Updated recurring payment for {payee.title()} to {amount}."
+                
+            elif parsed_data.get('is_recurring_payment'):
+                current_month = datetime.now().strftime("%Y-%m")
+                database.mark_recurring_paid(user_id, payee, current_month)
+                if amount:
+                    database.add_expense(user_id, amount, 'recurring', 'unknown', f"Paid {payee}")
+                reply = f"✅ Marked {payee.title()} as paid for this month!"
+
+        # Check Debt
+        elif parsed_data.get('is_debt') or parsed_data.get('is_debt_clear'):
             is_transaction = True
             amount = parsed_data.get('amount')
             person_name = parsed_data.get('person_name', 'unknown')
@@ -82,7 +89,7 @@ def handle_message(message):
                 direction = "You owe" if debt_type == "i_owe" else "Owed to you by"
                 reply = f"📝 Debt Recorded: {direction} {person_name.title()} ({amount})"
                 
-        # Check if it's a standard expense
+        # Check Standard Expense
         elif parsed_data.get('is_expense') and parsed_data.get('amount') is not None:
             is_transaction = True
             amount = parsed_data.get('amount')
@@ -92,23 +99,17 @@ def handle_message(message):
             
             database.add_expense(user_id, amount, category, payment_source, description)
             monthly_total = database.get_monthly_total(user_id)
-            
-            reply = (
-                f"✅ Recorded!\n"
-                f"Amount: {amount}\n"
-                f"Category: {category.capitalize()}\n"
-                f"Payment Source: {payment_source}\n\n"
-                f"📊 Total spent this month: {monthly_total}"
-            )
+            reply = f"✅ Recorded!\nAmount: {amount}\nCategory: {category.capitalize()}\n📊 Total spent this month: {monthly_total}"
         else:
-            # It's a conversation or advice request
+            # Advice / List queries
             monthly_total = database.get_monthly_total(user_id)
             recent_expenses = database.get_recent_expenses(user_id)
-            reply = llm_helper.get_finance_advice(user_id, text, monthly_total, recent_expenses)
+            recurring_expenses = database.get_all_recurring(user_id)
+            reply = llm_helper.get_finance_advice(user_id, text, monthly_total, recent_expenses, recurring_expenses)
             bot.reply_to(message, reply)
             return
 
-    # If it was an expense or debt, append the reminder to the reply
+    # Append reminders
     if is_transaction:
         uncleared = database.get_uncleared_debts(user_id)
         if uncleared:
@@ -119,14 +120,38 @@ def handle_message(message):
                     reply += f"\n- You owe {person.title()}: {amt}"
                 else:
                     reply += f"\n- {person.title()} owes you: {amt}"
-                    
         bot.reply_to(message, reply)
 
-# --- FLASK SERVER (TO KEEP RENDER HAPPY) ---
+# --- FLASK SERVER & CRON ---
 app = Flask(__name__)
+
+def check_reminders():
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    current_month = datetime.now().strftime("%Y-%m")
+    last_run = database.get_setting("last_cron_date")
+    
+    if last_run != today_str:
+        users = database.get_all_users()
+        for u in users:
+            recurrings = database.get_all_recurring(u)
+            for r in recurrings:
+                r_id, amount, cat, payee, desc, is_autopay, dom, last_paid, last_notif = r
+                
+                if is_autopay:
+                    target_date = datetime.now() + timedelta(days=2)
+                    if target_date.day == dom and last_notif != current_month:
+                        bot.send_message(u, f"🔔 *Autopay Notice:*\nYour subscription to {payee.title()} ({amount}) will be auto-debited in 2 days!", parse_mode='Markdown')
+                        database.mark_recurring_notified(r_id, current_month)
+                else:
+                    if datetime.now().day >= dom and last_paid != current_month and last_notif != current_month:
+                        bot.send_message(u, f"🔔 *Reminder:*\nYour recurring payment for {payee.title()} ({amount}) is due!\n_Reply with '{payee} paid' once you pay it._", parse_mode='Markdown')
+                        database.mark_recurring_notified(r_id, current_month)
+                        
+        database.set_setting("last_cron_date", today_str)
 
 @app.route('/')
 def home():
+    check_reminders()
     return "Bot is running!"
 
 def run_flask():
@@ -134,9 +159,6 @@ def run_flask():
     app.run(host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
-    print("Starting Flask server...")
     flask_thread = threading.Thread(target=run_flask)
     flask_thread.start()
-    
-    print("Bot is starting up...")
     bot.infinity_polling()
