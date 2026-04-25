@@ -43,14 +43,18 @@ def parse_expense(text):
     """
     
     try:
-        # Request native JSON from Gemini to guarantee perfect formatting
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                response_mime_type="application/json",
-            )
-        )
-        return json.loads(response.text.strip())
+        response = model.generate_content(prompt)
+        result_text = response.text.strip()
+        
+        # Robust JSON extraction: look for the opening and closing brackets
+        start_idx = result_text.find('{')
+        end_idx = result_text.rfind('}')
+        if start_idx != -1 and end_idx != -1:
+            result_text = result_text[start_idx:end_idx+1]
+            return json.loads(result_text)
+        else:
+            print(f"Could not find JSON block in LLM response: {result_text}")
+            return None
     except Exception as e:
         print(f"Failed to parse LLM response: {e}")
         return None
