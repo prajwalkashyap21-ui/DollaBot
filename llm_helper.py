@@ -39,11 +39,16 @@ def parse_expense(text):
     try:
         response = model.generate_content(prompt)
         result_text = response.text.strip()
-        if result_text.startswith("```json"):
-            result_text = result_text[7:-3].strip()
-        elif result_text.startswith("```"):
-            result_text = result_text[3:-3].strip()
-        return json.loads(result_text)
+        
+        # Robust JSON extraction: look for the opening and closing brackets
+        start_idx = result_text.find('{')
+        end_idx = result_text.rfind('}')
+        if start_idx != -1 and end_idx != -1:
+            result_text = result_text[start_idx:end_idx+1]
+            return json.loads(result_text)
+        else:
+            print("Could not find JSON block in LLM response")
+            return None
     except Exception as e:
         print(f"Failed to parse LLM response: {e}")
         return None

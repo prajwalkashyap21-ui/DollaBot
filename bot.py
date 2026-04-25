@@ -45,77 +45,80 @@ def handle_message(message):
     bot.send_chat_action(message.chat.id, 'typing')
     parsed_data = llm_helper.parse_expense(text)
     
+    if not parsed_data:
+        bot.reply_to(message, "I'm sorry, I had a little trouble understanding that. Could you try rephrasing it?")
+        return
+        
     reply = ""
     is_transaction = False
     
-    if parsed_data:
-        # Check Recurring
-        if parsed_data.get('is_recurring_setup') or parsed_data.get('is_recurring_update') or parsed_data.get('is_recurring_payment'):
-            is_transaction = True
-            amount = parsed_data.get('amount')
-            payee = parsed_data.get('payee', 'unknown')
-            
-            if parsed_data.get('is_recurring_setup'):
-                category = parsed_data.get('category', 'recurring')
-                description = parsed_data.get('description', text)
-                is_autopay = parsed_data.get('is_autopay', False)
-                day_of_month = parsed_data.get('day_of_month') or datetime.now().day
-                database.add_recurring(user_id, amount, category, payee, description, is_autopay, day_of_month)
-                reply = f"🔄 Setup Recurring: {payee.title()} ({amount}) on the {day_of_month}th of every month.\nAutopay: {'Yes' if is_autopay else 'No'}"
-                
-            elif parsed_data.get('is_recurring_update'):
-                day_of_month = parsed_data.get('day_of_month')
-                update_msg = []
-                if amount:
-                    database.update_recurring_amount(user_id, payee, amount)
-                    update_msg.append(f"amount to {amount}")
-                if day_of_month:
-                    database.update_recurring_date(user_id, payee, day_of_month)
-                    update_msg.append(f"date to the {day_of_month}th")
-                
-                reply = f"🔄 Updated recurring payment for {payee.title()}: {' and '.join(update_msg)}."
-                
-            elif parsed_data.get('is_recurring_payment'):
-                current_month = datetime.now().strftime("%Y-%m")
-                database.mark_recurring_paid(user_id, payee, current_month)
-                if amount:
-                    database.add_expense(user_id, amount, 'recurring', 'unknown', f"Paid {payee}")
-                reply = f"✅ Marked {payee.title()} as paid for this month!"
-
-        # Check Debt
-        elif parsed_data.get('is_debt') or parsed_data.get('is_debt_clear'):
-            is_transaction = True
-            amount = parsed_data.get('amount')
-            person_name = parsed_data.get('person_name', 'unknown')
-            debt_type = parsed_data.get('debt_type')
-            
-            if parsed_data.get('is_debt_clear'):
-                database.clear_debt(user_id, person_name)
-                reply = f"✅ Cleared debts with {person_name.title()}!"
-            else:
-                database.add_debt(user_id, amount, person_name, debt_type)
-                direction = "You owe" if debt_type == "i_owe" else "Owed to you by"
-                reply = f"📝 Debt Recorded: {direction} {person_name.title()} ({amount})"
-                
-        # Check Standard Expense
-        elif parsed_data.get('is_expense') and parsed_data.get('amount') is not None:
-            is_transaction = True
-            amount = parsed_data.get('amount')
-            category = parsed_data.get('category', 'other')
-            payment_source = parsed_data.get('payment_source', 'unknown')
+    # Check Recurring
+    if parsed_data.get('is_recurring_setup') or parsed_data.get('is_recurring_update') or parsed_data.get('is_recurring_payment'):
+        is_transaction = True
+        amount = parsed_data.get('amount')
+        payee = parsed_data.get('payee', 'unknown')
+        
+        if parsed_data.get('is_recurring_setup'):
+            category = parsed_data.get('category', 'recurring')
             description = parsed_data.get('description', text)
+            is_autopay = parsed_data.get('is_autopay', False)
+            day_of_month = parsed_data.get('day_of_month') or datetime.now().day
+            database.add_recurring(user_id, amount, category, payee, description, is_autopay, day_of_month)
+            reply = f"🔄 Setup Recurring: {payee.title()} ({amount}) on the {day_of_month}th of every month.\nAutopay: {'Yes' if is_autopay else 'No'}"
             
-            database.add_expense(user_id, amount, category, payment_source, description)
-            monthly_total = database.get_monthly_total(user_id)
-            reply = f"✅ Recorded!\nAmount: {amount}\nCategory: {category.capitalize()}\n📊 Total spent this month: {monthly_total}"
+        elif parsed_data.get('is_recurring_update'):
+            day_of_month = parsed_data.get('day_of_month')
+            update_msg = []
+            if amount:
+                database.update_recurring_amount(user_id, payee, amount)
+                update_msg.append(f"amount to {amount}")
+            if day_of_month:
+                database.update_recurring_date(user_id, payee, day_of_month)
+                update_msg.append(f"date to the {day_of_month}th")
+            
+            reply = f"🔄 Updated recurring payment for {payee.title()}: {' and '.join(update_msg)}."
+            
+        elif parsed_data.get('is_recurring_payment'):
+            current_month = datetime.now().strftime("%Y-%m")
+            database.mark_recurring_paid(user_id, payee, current_month)
+            if amount:
+                database.add_expense(user_id, amount, 'recurring', 'unknown', f"Paid {payee}")
+            reply = f"✅ Marked {payee.title()} as paid for this month!"
+
+    # Check Debt
+    elif parsed_data.get('is_debt') or parsed_data.get('is_debt_clear'):
+        is_transaction = True
+        amount = parsed_data.get('amount')
+        person_name = parsed_data.get('person_name', 'unknown')
+        debt_type = parsed_data.get('debt_type')
+        
+        if parsed_data.get('is_debt_clear'):
+            database.clear_debt(user_id, person_name)
+            reply = f"✅ Cleared debts with {person_name.title()}!"
         else:
-            # Advice / List queries
-            monthly_total = database.get_monthly_total(user_id)
-            recent_expenses = database.get_recent_expenses(user_id)
-            recurring_expenses = database.get_all_recurring(user_id)
-            reply = llm_helper.get_finance_advice(user_id, text, monthly_total, recent_expenses, recurring_expenses)
-            bot.reply_to(message, reply)
-            return
+            database.add_debt(user_id, amount, person_name, debt_type)
+            direction = "You owe" if debt_type == "i_owe" else "Owed to you by"
+            reply = f"📝 Debt Recorded: {direction} {person_name.title()} ({amount})"
+            
+    # Check Standard Expense
+    elif parsed_data.get('is_expense') and parsed_data.get('amount') is not None:
+        is_transaction = True
+        amount = parsed_data.get('amount')
+        category = parsed_data.get('category', 'other')
+        payment_source = parsed_data.get('payment_source', 'unknown')
+        description = parsed_data.get('description', text)
+        
+        database.add_expense(user_id, amount, category, payment_source, description)
+        monthly_total = database.get_monthly_total(user_id)
+        reply = f"✅ Recorded!\nAmount: {amount}\nCategory: {category.capitalize()}\n📊 Total spent this month: {monthly_total}"
+    else:
+        # Advice / List queries
+        monthly_total = database.get_monthly_total(user_id)
+        recent_expenses = database.get_recent_expenses(user_id)
+        recurring_expenses = database.get_all_recurring(user_id)
+        reply = llm_helper.get_finance_advice(user_id, text, monthly_total, recent_expenses, recurring_expenses)
+        bot.reply_to(message, reply)
+        return
 
     # Append reminders
     if is_transaction:
