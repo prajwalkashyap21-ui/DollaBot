@@ -14,15 +14,21 @@ def get_model_name():
     global MODEL_NAME
     if MODEL_NAME is None:
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        # STRICT FILTER: 2.0 and 2.5 models have strict 'limit: 0' quotas on some free-tier accounts!
-        # We must explicitly force the script to only select '1.5-flash' which has the 1,500/day limit.
-        safe_flash_models = [m for m in available_models if '1.5-flash' in m]
         
-        if safe_flash_models:
-            MODEL_NAME = safe_flash_models[0]
+        # We know 2.0 and 2.5 are severely restricted on free tier (limit 0 or 20).
+        # Filter them out completely to find a stable workhorse (like 1.0-pro or 1.5).
+        safe_models = [m for m in available_models if '2.0' not in m and '2.5' not in m]
+        
+        if safe_models:
+            # Prefer flash if available among safe models, else take whatever is safe
+            flash = [m for m in safe_models if 'flash' in m]
+            MODEL_NAME = flash[0] if flash else safe_models[0]
         else:
-            # Absolute fallback
-            MODEL_NAME = available_models[0]
+            # If Google literally removed all older models and only 2.0 and 2.5 exist:
+            # Try to pick 2.5 since it at least has 20 requests/day, unlike 2.0 which has 0!
+            fallback_25 = [m for m in available_models if '2.5' in m]
+            MODEL_NAME = fallback_25[0] if fallback_25 else available_models[0]
+            
     return MODEL_NAME
 
 def parse_expense(text):
