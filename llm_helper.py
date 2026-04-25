@@ -14,14 +14,14 @@ def get_model_name():
     global MODEL_NAME
     if MODEL_NAME is None:
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        # IMPORTANT: gemini-2.5-flash only allows 20 free requests per day!
-        # gemini-1.5-flash allows 1,500 free requests per day!
-        # We must actively avoid 2.5 to prevent quota errors.
-        safe_flash_models = [m for m in available_models if 'flash' in m and '2.5' not in m]
+        # STRICT FILTER: 2.0 and 2.5 models have strict 'limit: 0' quotas on some free-tier accounts!
+        # We must explicitly force the script to only select '1.5-flash' which has the 1,500/day limit.
+        safe_flash_models = [m for m in available_models if '1.5-flash' in m]
         
         if safe_flash_models:
             MODEL_NAME = safe_flash_models[0]
         else:
+            # Absolute fallback
             MODEL_NAME = available_models[0]
     return MODEL_NAME
 
