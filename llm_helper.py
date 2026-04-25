@@ -53,11 +53,13 @@ def parse_expense(text):
             result_text = result_text[start_idx:end_idx+1]
             return json.loads(result_text)
         else:
-            print(f"Could not find JSON block in LLM response: {result_text}")
-            return None
+            err = f"Could not find JSON block. Response was: {result_text}"
+            print(err)
+            return {"error": err}
     except Exception as e:
-        print(f"Failed to parse LLM response: {e}")
-        return None
+        err = f"Exception during LLM parse: {str(e)}"
+        print(err)
+        return {"error": err}
 
 def get_finance_advice(user_id, user_message, current_monthly_total, recent_expenses, recurring_expenses):
     model = genai.GenerativeModel(get_model_name())

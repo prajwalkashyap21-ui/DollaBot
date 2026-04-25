@@ -74,6 +74,10 @@ def handle_message(message):
         bot.reply_to(message, "I'm sorry, I had a little trouble understanding that. Could you try rephrasing it?")
         return
         
+    if "error" in parsed_data:
+        bot.reply_to(message, f"🛠 *System Error:*\n`{parsed_data['error']}`", parse_mode="Markdown")
+        return
+        
     reply = ""
     is_transaction = False
     
