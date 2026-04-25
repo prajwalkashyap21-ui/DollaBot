@@ -42,24 +42,30 @@ def parse_expense(text):
     - day_of_month: (integer) The specific day of the month (1-31) the recurring expense happens or is due. Null if not specified.
     """
     
-    try:
-        response = model.generate_content(prompt)
-        result_text = response.text.strip()
-        
-        # Robust JSON extraction: look for the opening and closing brackets
-        start_idx = result_text.find('{')
-        end_idx = result_text.rfind('}')
-        if start_idx != -1 and end_idx != -1:
-            result_text = result_text[start_idx:end_idx+1]
-            return json.loads(result_text)
-        else:
-            err = f"Could not find JSON block. Response was: {result_text}"
+    for attempt in range(3):
+        try:
+            response = model.generate_content(prompt)
+            result_text = response.text.strip()
+            
+            # Robust JSON extraction: look for the opening and closing brackets
+            start_idx = result_text.find('{')
+            end_idx = result_text.rfind('}')
+            if start_idx != -1 and end_idx != -1:
+                result_text = result_text[start_idx:end_idx+1]
+                return json.loads(result_text)
+            else:
+                err = f"Could not find JSON block. Response was: {result_text}"
+                print(err)
+                return {"error": err}
+        except Exception as e:
+            if "429" in str(e) and attempt < 2:
+                import time
+                print("Rate limited! Waiting 6 seconds before retrying...")
+                time.sleep(6)
+                continue
+            err = f"Exception during LLM parse: {str(e)}"
             print(err)
             return {"error": err}
-    except Exception as e:
-        err = f"Exception during LLM parse: {str(e)}"
-        print(err)
-        return {"error": err}
 
 def get_finance_advice(user_id, user_message, current_monthly_total, recent_expenses, recurring_expenses):
     model = genai.GenerativeModel(get_model_name())
@@ -84,9 +90,16 @@ def get_finance_advice(user_id, user_message, current_monthly_total, recent_expe
     If they ask what recurring expenses are unpaid, identify those where Last Paid is NOT the current month, and Autopay is False.
     Keep the response concise, helpful, and use emojis!
     """
-    try:
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        print(f"Failed to generate advice: {e}")
-        return "I'm having trouble analyzing your request right now. Let's try again later!"
+    for attempt in range(3):
+        try:
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            if "429" in str(e) and attempt < 2:
+                import time
+                print("Rate limited in advice engine! Waiting 6 seconds...")
+                time.sleep(6)
+                continue
+            err = f"Exception during advice generation: {str(e)}"
+            print(err)
+            return f"🛠 *System Error in Advice Engine:*\n`{err}`"
