@@ -14,8 +14,15 @@ def get_model_name():
     global MODEL_NAME
     if MODEL_NAME is None:
         available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        flash_models = [m for m in available_models if 'flash' in m]
-        MODEL_NAME = flash_models[0] if flash_models else available_models[0]
+        # IMPORTANT: gemini-2.5-flash only allows 20 free requests per day!
+        # gemini-1.5-flash allows 1,500 free requests per day!
+        # We must actively avoid 2.5 to prevent quota errors.
+        safe_flash_models = [m for m in available_models if 'flash' in m and '2.5' not in m]
+        
+        if safe_flash_models:
+            MODEL_NAME = safe_flash_models[0]
+        else:
+            MODEL_NAME = available_models[0]
     return MODEL_NAME
 
 def parse_expense(text):
