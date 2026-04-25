@@ -34,8 +34,33 @@ except Exception as e:
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    welcome_text = "Hello! I am your personal Expense Tracker! Log expenses, debts, and subscriptions with natural language."
-    bot.reply_to(message, welcome_text)
+    welcome_text = """👋 *Welcome to your AI Finance Manager!*
+
+I understand natural language, so you can just text me like a real person!
+
+🌟 *Here is what I can do for you:*
+
+*1️⃣ Track Expenses*
+- _"taxi 300"_
+- _"bought lunch for 500 using UPI"_
+
+*2️⃣ Manage Debts & IOUs*
+- _"300 owed to aditya"_
+- _"aditya owes me 500"_
+- _"300 to aditya cleared"_
+
+*3️⃣ Subscriptions & Recurring*
+- _"Gemini subscription 2000 autopay"_
+- _"Set up Netflix for 500 every month on the 15th"_
+- _"Rent paid"_
+
+*4️⃣ Financial Advice*
+- _"How much have I spent this month?"_
+- _"What subscriptions do I have?"_
+- _"What recurring expenses are unpaid?"_
+
+Just send your first expense to get started! 🚀"""
+    bot.reply_to(message, welcome_text, parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):

@@ -2,18 +2,24 @@ import os
 import google.generativeai as genai
 import json
 
+MODEL_NAME = None
+
 def init_llm():
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY not found in environment variables.")
     genai.configure(api_key=api_key)
 
+def get_model_name():
+    global MODEL_NAME
+    if MODEL_NAME is None:
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        flash_models = [m for m in available_models if 'flash' in m]
+        MODEL_NAME = flash_models[0] if flash_models else available_models[0]
+    return MODEL_NAME
+
 def parse_expense(text):
-    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    flash_models = [m for m in available_models if 'flash' in m]
-    model_name = flash_models[0] if flash_models else available_models[0]
-    
-    model = genai.GenerativeModel(model_name)
+    model = genai.GenerativeModel(get_model_name())
     prompt = f"""
     You are a finance assistant. Extract the details from the user's message.
     Message: "{text}"
@@ -37,33 +43,27 @@ def parse_expense(text):
     """
     
     try:
-        response = model.generate_content(prompt)
-        result_text = response.text.strip()
-        
-        # Robust JSON extraction: look for the opening and closing brackets
-        start_idx = result_text.find('{')
-        end_idx = result_text.rfind('}')
-        if start_idx != -1 and end_idx != -1:
-            result_text = result_text[start_idx:end_idx+1]
-            return json.loads(result_text)
-        else:
-            print("Could not find JSON block in LLM response")
-            return None
+        # Request native JSON from Gemini to guarantee perfect formatting
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type="application/json",
+            )
+        )
+        return json.loads(response.text.strip())
     except Exception as e:
         print(f"Failed to parse LLM response: {e}")
         return None
 
 def get_finance_advice(user_id, user_message, current_monthly_total, recent_expenses, recurring_expenses):
-    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    flash_models = [m for m in available_models if 'flash' in m]
-    model_name = flash_models[0] if flash_models else available_models[0]
-    
-    model = genai.GenerativeModel(model_name)
+    model = genai.GenerativeModel(get_model_name())
     expenses_str = "\n".join([f"- {e[0]} for {e[1]} via {e[2]} on {e[4]}" for e in recent_expenses])
     recurring_str = "\n".join([f"- {e[4]} ({e[1]}) to {e[3]} | Autopay: {e[5]} | Last Paid: {e[7]}" for e in recurring_expenses])
     
     prompt = f"""
-    You are a personal finance agent on Telegram. 
+    You are an AI personal finance agent on Telegram. 
+    Your capabilities: You track daily expenses, manage debts/IOUs, handle recurring subscriptions/rent (with custom dates and autopay), and give budgeting advice.
+    
     User message: "{user_message}"
     
     Context:
@@ -73,6 +73,7 @@ def get_finance_advice(user_id, user_message, current_monthly_total, recent_expe
     - Recurring Expenses & Subscriptions (Autopay info and Paid status):
     {recurring_str}
     
+    If the user asks what you can do or how to use you, cheerfully explain your capabilities with simple examples.
     If the user asks what subscriptions they have running, list them nicely from the context.
     If they ask what recurring expenses are unpaid, identify those where Last Paid is NOT the current month, and Autopay is False.
     Keep the response concise, helpful, and use emojis!
