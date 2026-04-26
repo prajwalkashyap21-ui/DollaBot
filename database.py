@@ -99,6 +99,27 @@ def get_recent_expenses(user_id, limit=5):
     conn.close()
     return results
 
+def delete_recent_expense(user_id, amount=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if amount is not None:
+        cursor.execute('''
+            DELETE FROM expenses 
+            WHERE id = (
+                SELECT id FROM expenses WHERE user_id = %s AND amount = %s ORDER BY date DESC LIMIT 1
+            )
+        ''', (user_id, amount))
+    else:
+        cursor.execute('''
+            DELETE FROM expenses 
+            WHERE id = (
+                SELECT id FROM expenses WHERE user_id = %s ORDER BY date DESC LIMIT 1
+            )
+        ''', (user_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 # --- DEBT FUNCTIONS ---
 def add_debt(user_id, amount, person_name, debt_type):
     conn = get_db_connection()

@@ -129,6 +129,17 @@ def handle_message(message):
             direction = "You owe" if debt_type == "i_owe" else "Owed to you by"
             reply = f"📝 Debt Recorded: {direction} {person_name.title()} ({amount})"
             
+    # Check Expense Delete
+    elif parsed_data.get('is_expense_delete'):
+        is_transaction = True
+        amount = parsed_data.get('amount')
+        database.delete_recent_expense(user_id, amount)
+        monthly_total = database.get_monthly_total(user_id)
+        if amount:
+            reply = f"🗑 *Deleted!* Removed your most recent expense of {amount}.\n📊 New monthly total: {monthly_total}"
+        else:
+            reply = f"🗑 *Deleted!* Removed your most recent expense.\n📊 New monthly total: {monthly_total}"
+
     # Check Standard Expense
     elif parsed_data.get('is_expense') and parsed_data.get('amount') is not None:
         is_transaction = True

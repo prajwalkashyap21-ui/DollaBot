@@ -22,8 +22,9 @@ def parse_expense(text):
     - category: (string) the type of expense.
     - payment_source: (string) the payment method.
     - description: (string) a brief summary.
-    - is_expense: (boolean) true if it's a standard expense.
-    - is_debt: (boolean) true if owing or owed money.
+    - is_expense: (boolean) true if the user is logging a new, standard one-time expense.
+    - is_expense_delete: (boolean) true if the user is explicitly asking to delete, remove, or undo an expense.
+    - is_debt: (boolean) true if the user is logging a debt or someone owing money.
     - is_debt_clear: (boolean) true if clearing a debt.
     - debt_type: (string) "i_owe" or "owed_to_me".
     - person_name: (string) name of person for debt.
@@ -82,12 +83,12 @@ def get_finance_advice(user_id, user_message, current_monthly_total, recent_expe
     If the user asks what you can do or how to use you, cheerfully explain your capabilities with simple examples.
     If the user asks what subscriptions they have running, list them nicely from the context.
     If they ask what recurring expenses are unpaid, identify those where Last Paid is NOT the current month, and Autopay is False.
-    Keep the response concise, helpful, and use emojis!
+    Keep the response concise, helpful, and use emojis! DO NOT use markdown like **bold** or *italics*.
     """
     for attempt in range(3):
         try:
             response = model.generate_content(prompt)
-            return response.text
+            return response.text.replace('**', '').replace('*', '')
         except Exception as e:
             if "429" in str(e) and attempt < 2:
                 import time
