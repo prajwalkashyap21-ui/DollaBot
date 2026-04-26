@@ -12,8 +12,8 @@ load_dotenv()
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-CURRENT_VERSION = "1.3 - Custom Recurring Dates"
-NEW_FEATURE_MESSAGE = "🚀 *New Feature Deployed!*\n\nYou can now specify the exact date for your recurring expenses! Example:\n- _\"Set up Netflix for 500 every month on the 15th\"_\n- _\"Change my rent date to the 5th\"_"
+CURRENT_VERSION = "1.4 - Smart Dates & Historical Logging"
+NEW_FEATURE_MESSAGE = "🚀 *New Feature Deployed!*\n\n• *Edit Past Expenses:* You can now change the date of any past expense! (e.g. _\"The 2500 payment was made on 5th April\"_)\n• *Historical Logging:* Log an expense for a past date and it will automatically go to the right month!\n• *Bug Fixes:* Say goodbye to weird asterisks and duplicate deletion bugs! 🎉"
 
 database.init_db()
 llm_helper.init_llm()
