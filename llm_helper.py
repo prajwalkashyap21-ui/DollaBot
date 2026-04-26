@@ -12,7 +12,7 @@ def init_llm():
 
 def parse_expense(text):
     # Hardcode the model to skip the slow list_models API check entirely!
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-flash-lite-latest")
     prompt = f"""
     You are a finance assistant. Extract the details from the user's message.
     Message: "{text}"
@@ -62,7 +62,7 @@ def parse_expense(text):
 
 def get_finance_advice(user_id, user_message, current_monthly_total, recent_expenses, recurring_expenses):
     # Hardcode the model to skip the slow list_models API check entirely!
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-flash-lite-latest")
     expenses_str = "\n".join([f"- {e[0]} for {e[1]} via {e[2]} on {e[4]}" for e in recent_expenses])
     recurring_str = "\n".join([f"- {e[4]} ({e[1]}) to {e[3]} | Autopay: {e[5]} | Last Paid: {e[7]}" for e in recurring_expenses])
     
