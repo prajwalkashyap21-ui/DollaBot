@@ -128,7 +128,7 @@ def get_uncleared_debts(user_id):
     cursor.execute('''
         SELECT amount, person_name, debt_type FROM debts 
         WHERE user_id = %s AND is_cleared = FALSE
-    ''')
+    ''', (user_id,))
     results = cursor.fetchall()
     cursor.close()
     conn.close()
