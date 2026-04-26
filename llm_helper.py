@@ -10,29 +10,9 @@ def init_llm():
         raise ValueError("GEMINI_API_KEY not found in environment variables.")
     genai.configure(api_key=api_key)
 
-def get_model_name():
-    global MODEL_NAME
-    if MODEL_NAME is None:
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        
-        # We know 2.0 and 2.5 are severely restricted on free tier (limit 0 or 20).
-        # Filter them out completely to find a stable workhorse (like 1.0-pro or 1.5).
-        safe_models = [m for m in available_models if '2.0' not in m and '2.5' not in m]
-        
-        if safe_models:
-            # Prefer flash if available among safe models, else take whatever is safe
-            flash = [m for m in safe_models if 'flash' in m]
-            MODEL_NAME = flash[0] if flash else safe_models[0]
-        else:
-            # If Google literally removed all older models and only 2.0 and 2.5 exist:
-            # Try to pick 2.5 since it at least has 20 requests/day, unlike 2.0 which has 0!
-            fallback_25 = [m for m in available_models if '2.5' in m]
-            MODEL_NAME = fallback_25[0] if fallback_25 else available_models[0]
-            
-    return MODEL_NAME
-
 def parse_expense(text):
-    model = genai.GenerativeModel(get_model_name())
+    # Hardcode the model to skip the slow list_models API check entirely!
+    model = genai.GenerativeModel("gemini-1.5-flash")
     prompt = f"""
     You are a finance assistant. Extract the details from the user's message.
     Message: "{text}"
@@ -81,7 +61,8 @@ def parse_expense(text):
             return {"error": err}
 
 def get_finance_advice(user_id, user_message, current_monthly_total, recent_expenses, recurring_expenses):
-    model = genai.GenerativeModel(get_model_name())
+    # Hardcode the model to skip the slow list_models API check entirely!
+    model = genai.GenerativeModel("gemini-1.5-flash")
     expenses_str = "\n".join([f"- {e[0]} for {e[1]} via {e[2]} on {e[4]}" for e in recent_expenses])
     recurring_str = "\n".join([f"- {e[4]} ({e[1]}) to {e[3]} | Autopay: {e[5]} | Last Paid: {e[7]}" for e in recurring_expenses])
     
