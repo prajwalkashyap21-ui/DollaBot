@@ -22,18 +22,20 @@ def parse_expense(text):
     - category: (string) the type of expense.
     - payment_source: (string) the payment method.
     - description: (string) a brief summary.
+    - expense_date: (string) YYYY-MM-DD format if the user explicitly mentions a past date (e.g. "on 2nd April"). Null if not specified.
     - is_expense: (boolean) true if the user is logging a new, standard one-time expense.
     - is_expense_delete: (boolean) true if the user is explicitly asking to delete, remove, or undo an expense.
+    - is_expense_update: (boolean) true if the user is asking to update or change the date of an existing, standard logged expense (e.g. "The 2500 payment was made on 5th April").
     - is_debt: (boolean) true if the user is logging a debt or someone owing money.
     - is_debt_clear: (boolean) true if clearing a debt.
     - debt_type: (string) "i_owe" or "owed_to_me".
     - person_name: (string) name of person for debt.
-    - is_recurring_setup: (boolean) true if setting up a new recurring expense/subscription (e.g., "paying 37000 to landlord every month").
-    - is_recurring_update: (boolean) true if updating the amount of an existing recurring expense (e.g., "rent increased to 39000").
+    - is_recurring_setup: (boolean) true if setting up a new recurring expense/subscription (ONLY if user explicitly mentions "monthly", "recurring", "subscription", or "every month").
+    - is_recurring_update: (boolean) true if the user wants to update the amount or date of an existing recurring expense (e.g. "change my rent date to the 5th").
     - is_recurring_payment: (boolean) true if the user is mentioning they have paid a recurring expense.
     - is_autopay: (boolean) true if the recurring expense is auto-debited / autopay.
-    - payee: (string) who is receiving the recurring payment (e.g., "landlord", "Netflix", "Gemini").
-    - day_of_month: (integer) The specific day of the month (1-31) the recurring expense happens or is due. Null if not specified.
+    - payee: (string) who is receiving the recurring payment (e.g., "electricity", "Netflix").
+    - day_of_month: (integer) The specific day of the month (1-31) the recurring expense happens or is due (e.g. "5th April" -> 5). Null if not specified.
     """
     
     for attempt in range(3):

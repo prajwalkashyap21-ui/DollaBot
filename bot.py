@@ -97,15 +97,22 @@ def handle_message(message):
             
         elif parsed_data.get('is_recurring_update'):
             day_of_month = parsed_data.get('day_of_month')
-            update_msg = []
-            if amount:
-                database.update_recurring_amount(user_id, payee, amount)
-                update_msg.append(f"amount to {amount}")
-            if day_of_month:
-                database.update_recurring_date(user_id, payee, day_of_month)
-                update_msg.append(f"date to the {day_of_month}th")
+            payee = parsed_data.get('payee')
             
-            reply = f"🔄 Updated recurring payment for {payee.title()}: {' and '.join(update_msg)}."
+            update_msg = []
+            if payee and payee.lower() != "unknown" and payee.lower() != "bill":
+                if amount:
+                    database.update_recurring_amount(user_id, payee, amount)
+                    update_msg.append(f"amount to {amount}")
+                if day_of_month:
+                    database.update_recurring_date(user_id, payee, day_of_month)
+                    update_msg.append(f"date to the {day_of_month}th")
+            elif amount: # update by amount if payee is not provided
+                if day_of_month:
+                    database.update_recurring_date_by_amount(user_id, amount, day_of_month)
+                    update_msg.append(f"date to the {day_of_month}th for the {amount} bill")
+            
+            reply = f"🔄 Updated recurring payment: {' and '.join(update_msg)}."
             
         elif parsed_data.get('is_recurring_payment'):
             current_month = datetime.now().strftime("%Y-%m")
@@ -136,9 +143,24 @@ def handle_message(message):
         database.delete_recent_expense(user_id, amount)
         monthly_total = database.get_monthly_total(user_id)
         if amount:
-            reply = f"🗑 *Deleted!* Removed your most recent expense of {amount}.\n📊 New monthly total: {monthly_total}"
+            reply = f"🗑 Deleted! Removed your most recent expense of {amount}.\n📊 New monthly total: {monthly_total}"
         else:
-            reply = f"🗑 *Deleted!* Removed your most recent expense.\n📊 New monthly total: {monthly_total}"
+            reply = f"🗑 Deleted! Removed your most recent expense.\n📊 New monthly total: {monthly_total}"
+
+    # Check Expense Update
+    elif parsed_data.get('is_expense_update'):
+        is_transaction = True
+        amount = parsed_data.get('amount')
+        expense_date_str = parsed_data.get('expense_date')
+        if amount and expense_date_str:
+            try:
+                new_date = datetime.strptime(expense_date_str, "%Y-%m-%d")
+                database.update_recent_expense_date(user_id, amount, new_date)
+                reply = f"📅 Updated the date of your {amount} expense to {expense_date_str}."
+            except:
+                reply = "❌ Could not understand the new date format."
+        else:
+            reply = "❌ Please specify the exact amount of the expense you want to update, and the new date."
 
     # Check Standard Expense
     elif parsed_data.get('is_expense') and parsed_data.get('amount') is not None:
@@ -148,7 +170,15 @@ def handle_message(message):
         payment_source = parsed_data.get('payment_source', 'unknown')
         description = parsed_data.get('description', text)
         
-        database.add_expense(user_id, amount, category, payment_source, description)
+        expense_date_str = parsed_data.get('expense_date')
+        expense_date = None
+        if expense_date_str:
+            try:
+                expense_date = datetime.strptime(expense_date_str, "%Y-%m-%d")
+            except:
+                pass
+        
+        database.add_expense(user_id, amount, category, payment_source, description, expense_date)
         monthly_total = database.get_monthly_total(user_id)
         reply = f"✅ Recorded!\nAmount: {amount}\nCategory: {category.capitalize()}\n📊 Total spent this month: {monthly_total}"
     else:

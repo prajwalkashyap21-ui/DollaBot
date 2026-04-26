@@ -120,6 +120,19 @@ def delete_recent_expense(user_id, amount=None):
     cursor.close()
     conn.close()
 
+def update_recent_expense_date(user_id, amount, new_date):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE expenses SET date = %s 
+        WHERE id = (
+            SELECT id FROM expenses WHERE user_id = %s AND amount = %s ORDER BY date DESC LIMIT 1
+        )
+    ''', (new_date, user_id, amount))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 # --- DEBT FUNCTIONS ---
 def add_debt(user_id, amount, person_name, debt_type):
     conn = get_db_connection()
@@ -183,6 +196,16 @@ def update_recurring_date(user_id, payee, new_day):
     cursor.execute('''
         UPDATE recurring SET day_of_month = %s WHERE user_id = %s AND LOWER(payee) = LOWER(%s)
     ''', (new_day, user_id, payee))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def update_recurring_date_by_amount(user_id, amount, new_day):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE recurring SET day_of_month = %s WHERE user_id = %s AND amount = %s
+    ''', (new_day, user_id, amount))
     conn.commit()
     cursor.close()
     conn.close()
