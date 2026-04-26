@@ -146,9 +146,7 @@ def handle_message(message):
         recent_expenses = database.get_recent_expenses(user_id)
         recurring_expenses = database.get_all_recurring(user_id)
         reply = llm_helper.get_finance_advice(user_id, text, monthly_total, recent_expenses, recurring_expenses)
-        
-        # DEBUG INJECTION: Send the raw JSON to the user so we can see what the AI thought it was
-        bot.reply_to(message, f"⚙️ *DEBUG JSON:* `{parsed_data}`\n\n{reply}", parse_mode="Markdown")
+        bot.reply_to(message, reply)
         return
 
     # Append reminders
